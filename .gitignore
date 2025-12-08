@@ -1,0 +1,57 @@
+# 构建目录
+build/
+cmake-build-*/
+
+# CMake 生成文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Visual Studio
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# 可执行文件
+*.exe
+*.out
+HandwritingNumberRecognition
+
+# 编译输出
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+*.swp
+*.swo
+*~
+
+# Python文件
+*.py
+*.pyc
+*.pyo
+__pycache__/
+*.egg-info/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
