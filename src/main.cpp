@@ -23,7 +23,11 @@
 
 class DrawingWindow {
 public:
-    DrawingWindow(ModelBase& model) : model_(model), isDrawing_(false), needUpdate_(false) {
+    // 本地模型模式：model 非空，socketHost 为空
+    // Socket 模式：model 可为空，socketHost 非空
+    DrawingWindow(ModelBase* model, const std::string& socketHost, int socketPort)
+        : model_(model), socketHost_(socketHost), socketPort_(socketPort),
+          isDrawing_(false), needUpdate_(false) {
         canvas_ = cv::Mat(400, 400, CV_8UC1, cv::Scalar(255));
         display_ = cv::Mat(400, 800, CV_8UC1, cv::Scalar(255));
         inferenceThread_ = std::thread(&DrawingWindow::inferenceLoop, this);
@@ -54,7 +58,9 @@ public:
     }
 
 private:
-    ModelBase& model_;
+    ModelBase* model_;           // 本地模型，Socket 模式下为 nullptr
+    std::string socketHost_;     // Socket 模式下的服务端地址
+    int socketPort_;
     cv::Mat canvas_;
     cv::Mat display_;
     std::thread inferenceThread_;
@@ -129,14 +135,26 @@ private:
                 std::vector<float> input = preprocessImage(canvasCopy);
                 
                 try {
-                    std::vector<float> probabilities = model_.forward(input);
+                    std::vector<float> probabilities;
+                    auto t0 = std::chrono::high_resolution_clock::now();
+                    if (!socketHost_.empty()) {
+                        probabilities = socketForward(socketHost_, socketPort_, input);
+                    } else if (model_) {
+                        probabilities = model_->forward(input);
+                    } else {
+                        continue;
+                    }
+                    auto t1 = std::chrono::high_resolution_clock::now();
+                    double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+                    
                     auto maxIt = std::max_element(probabilities.begin(), probabilities.end());
                     int prediction = static_cast<int>(std::distance(probabilities.begin(), maxIt));
                     
                     static int inferenceCount = 0;
                     inferenceCount++;
-                    if (inferenceCount <= 3 || prediction == 1) {
-                        std::cout << "Inference #" << inferenceCount << " - Probabilities: ";
+                    if (inferenceCount <= 5 || prediction == 1) {
+                        std::cout << "Inference #" << inferenceCount << " - forward: " << std::fixed
+                                  << std::setprecision(2) << ms << " ms - Probabilities: ";
                         for (size_t i = 0; i < probabilities.size(); i++) {
                             std::cout << i << ":" << std::fixed << std::setprecision(3)
                                      << probabilities[i] << " ";
@@ -204,13 +222,16 @@ private:
 
 int main(int argc, char** argv) {
     try {
-        // 解析参数：plus=mnist-fc-plus, --server=Socket 服务端模式
+        // 解析参数：plus, --server, --socket <host>
         bool usePlus = false;
         bool serverMode = false;
+        std::string socketHost;
+        int socketPort = 12345;
         for (int i = 1; i < argc; i++) {
             std::string arg = argv[i];
             if (arg == "plus") usePlus = true;
             else if (arg == "--server") serverMode = true;
+            else if (arg == "--socket" && i + 1 < argc) socketHost = argv[++i];
         }
         
         std::string modelFolder = usePlus ? "mnist-fc-plus" : "mnist-fc";
@@ -240,22 +261,28 @@ int main(int argc, char** argv) {
             }
         }
         
-        if (!found) {
-            std::cerr << "Error: Cannot find " << modelFolder << " directory." << std::endl;
-            throw std::runtime_error("Cannot find model directory. Run with 'plus' for mnist-fc-plus.");
+        std::unique_ptr<ModelBase> model;
+        if (serverMode || socketHost.empty()) {
+            if (!found) {
+                std::cerr << "Error: Cannot find " << modelFolder << " directory." << std::endl;
+                throw std::runtime_error("Cannot find model directory. Run with 'plus' for mnist-fc-plus.");
+            }
+            std::cout << "Loading model from: " << modelPath << std::endl;
+            model = createModel(modelPath);
+            std::cout << "Model loaded successfully!" << std::endl;
         }
         
-        std::cout << "Loading model from: " << modelPath << std::endl;
-        std::unique_ptr<ModelBase> model = createModel(modelPath);
-        std::cout << "Model loaded successfully!" << std::endl;
-        
         if (serverMode) {
-            SocketServer server(model.get(), 12345);
+            SocketServer server(model.get(), socketPort);
             server.run();
             return 0;
         }
         
-        DrawingWindow window(*model);
+        if (!socketHost.empty()) {
+            std::cout << "Using socket backend: " << socketHost << ":" << socketPort << std::endl;
+        }
+        
+        DrawingWindow window(model.get(), socketHost, socketPort);
         window.run();
         
     } catch (const std::exception& e) {

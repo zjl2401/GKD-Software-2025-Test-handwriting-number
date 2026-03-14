@@ -5,6 +5,8 @@
 #include <iostream>
 #include <stdexcept>
 #include <iomanip>
+#include <thread>
+#include <algorithm>
 
 template<typename T = float>
 class Matrix {
@@ -68,10 +70,34 @@ public:
             throw std::runtime_error("Matrix dimensions do not match for multiplication");
         }
         Matrix result(rows_, other.cols_, T(0));
-        for (int i = 0; i < rows_; i++) {
-            for (int j = 0; j < other.cols_; j++) {
-                for (int k = 0; k < cols_; k++) {
-                    result.data_[i][j] += data_[i][k] * other.data_[k][j];
+        int nThreads = std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
+        if (rows_ >= 4 && nThreads > 1) {
+            // 多线程：按行划分，每线程写不同行，无写入竞争
+            int chunk = (rows_ + nThreads - 1) / nThreads;
+            std::vector<std::thread> threads;
+            for (int t = 0; t < nThreads; t++) {
+                int iStart = t * chunk;
+                int iEnd = std::min(iStart + chunk, rows_);
+                if (iStart >= iEnd) break;
+                threads.emplace_back([this, &other, &result, iStart, iEnd]() {
+                    for (int i = iStart; i < iEnd; i++) {
+                        for (int j = 0; j < other.cols_; j++) {
+                            T sum = T(0);
+                            for (int k = 0; k < cols_; k++) {
+                                sum += data_[i][k] * other.data_[k][j];
+                            }
+                            result.data_[i][j] = sum;
+                        }
+                    }
+                });
+            }
+            for (auto& th : threads) th.join();
+        } else {
+            for (int i = 0; i < rows_; i++) {
+                for (int j = 0; j < other.cols_; j++) {
+                    for (int k = 0; k < cols_; k++) {
+                        result.data_[i][j] += data_[i][k] * other.data_[k][j];
+                    }
                 }
             }
         }

@@ -85,7 +85,7 @@ HandwritingNumberRecognition.exe
 2. **运行模式**：
    - 图形界面（默认）：`HandwritingNumberRecognition` 或 `HandwritingNumberRecognition plus`
    - Socket 服务端：`HandwritingNumberRecognition --server` 或 `HandwritingNumberRecognition plus --server`
-   - 服务端监听端口 12345，接收 `[rows, cols, 784 个 float]` 的矩阵，返回 10 维概率
+   - 图形界面 + 远程推理：`HandwritingNumberRecognition --socket 127.0.0.1`（不加载本地模型，通过 Socket 调用远端服务端）
 3. **验证 Socket**：先启动服务端，再运行 `socket_client_test`（需用 CMake 编译）
 4. 图形界面下：左侧画布绘制数字，右侧显示识别结果；按 `c` 清空，按 `q` 或 ESC 退出
 

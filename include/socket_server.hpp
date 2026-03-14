@@ -5,6 +5,8 @@
 #include <memory>
 #include <vector>
 #include <cstdint>
+#include <chrono>
+#include <iomanip>
 #include <cstring>
 #include <stdexcept>
 #include <iostream>
@@ -142,7 +144,12 @@ private:
         }
         
         try {
+            auto t0 = std::chrono::high_resolution_clock::now();
             std::vector<float> output = model_->forward(input);
+            auto t1 = std::chrono::high_resolution_clock::now();
+            double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            std::cout << "forward: " << std::fixed << std::setprecision(2) << ms << " ms" << std::endl;
+            
             int32_t outCount = static_cast<int32_t>(output.size());
             if (!sendAll(client, &outCount, 4)) {
                 std::cerr << "Failed to send output count" << std::endl;
