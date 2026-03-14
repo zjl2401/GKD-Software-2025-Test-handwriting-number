@@ -81,11 +81,14 @@ HandwritingNumberRecognition.exe
 
 ## 使用说明
 
-1. 程序启动后会自动加载 `mnist-fc` 文件夹中的模型参数
-2. 在左侧画布上用鼠标绘制数字（按住左键拖动）
-3. 右侧会实时显示识别结果和概率分布
-4. 按 `c` 键清空画布
-5. 按 `q` 或 `ESC` 键退出程序
+1. 默认加载 `mnist-fc` 模型；加参数 `plus` 可加载 `mnist-fc-plus`（double 精度、更大 hidden）
+   - 默认：`./HandwritingNumberRecognition` 或 `HandwritingNumberRecognition.exe`
+   - Plus 版：`./HandwritingNumberRecognition plus` 或 `HandwritingNumberRecognition.exe plus`
+2. 程序启动后会自动加载对应模型
+3. 在左侧画布上用鼠标绘制数字（按住左键拖动）
+4. 右侧会实时显示识别结果和概率分布
+5. 按 `c` 键清空画布
+6. 按 `q` 或 `ESC` 键退出程序
 
 ## 项目结构
 
