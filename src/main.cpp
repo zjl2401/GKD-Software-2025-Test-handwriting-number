@@ -3,6 +3,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/videoio.hpp>
 #include "../include/file_reader.h"
+#include "../include/socket_server.hpp"
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -203,13 +204,13 @@ private:
 
 int main(int argc, char** argv) {
     try {
-        // 解析参数：plus 表示使用 mnist-fc-plus
+        // 解析参数：plus=mnist-fc-plus, --server=Socket 服务端模式
         bool usePlus = false;
+        bool serverMode = false;
         for (int i = 1; i < argc; i++) {
-            if (std::string(argv[i]) == "plus") {
-                usePlus = true;
-                break;
-            }
+            std::string arg = argv[i];
+            if (arg == "plus") usePlus = true;
+            else if (arg == "--server") serverMode = true;
         }
         
         std::string modelFolder = usePlus ? "mnist-fc-plus" : "mnist-fc";
@@ -247,6 +248,12 @@ int main(int argc, char** argv) {
         std::cout << "Loading model from: " << modelPath << std::endl;
         std::unique_ptr<ModelBase> model = createModel(modelPath);
         std::cout << "Model loaded successfully!" << std::endl;
+        
+        if (serverMode) {
+            SocketServer server(model.get(), 12345);
+            server.run();
+            return 0;
+        }
         
         DrawingWindow window(*model);
         window.run();

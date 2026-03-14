@@ -81,14 +81,13 @@ HandwritingNumberRecognition.exe
 
 ## 使用说明
 
-1. 默认加载 `mnist-fc` 模型；加参数 `plus` 可加载 `mnist-fc-plus`（double 精度、更大 hidden）
-   - 默认：`./HandwritingNumberRecognition` 或 `HandwritingNumberRecognition.exe`
-   - Plus 版：`./HandwritingNumberRecognition plus` 或 `HandwritingNumberRecognition.exe plus`
-2. 程序启动后会自动加载对应模型
-3. 在左侧画布上用鼠标绘制数字（按住左键拖动）
-4. 右侧会实时显示识别结果和概率分布
-5. 按 `c` 键清空画布
-6. 按 `q` 或 `ESC` 键退出程序
+1. 默认加载 `mnist-fc` 模型；加参数 `plus` 可加载 `mnist-fc-plus`
+2. **运行模式**：
+   - 图形界面（默认）：`HandwritingNumberRecognition` 或 `HandwritingNumberRecognition plus`
+   - Socket 服务端：`HandwritingNumberRecognition --server` 或 `HandwritingNumberRecognition plus --server`
+   - 服务端监听端口 12345，接收 `[rows, cols, 784 个 float]` 的矩阵，返回 10 维概率
+3. **验证 Socket**：先启动服务端，再运行 `socket_client_test`（需用 CMake 编译）
+4. 图形界面下：左侧画布绘制数字，右侧显示识别结果；按 `c` 清空，按 `q` 或 ESC 退出
 
 ## 项目结构
 
@@ -98,9 +97,11 @@ HandwritingNumberRecognition.exe
 ├── include/                # 头文件目录（Header-only 库）
 │   ├── matrix.h           # 矩阵类（完整实现）
 │   ├── model.h            # 模型类（完整实现）
-│   └── file_reader.h      # 文件读取工具（完整实现）
+│   ├── file_reader.h      # 文件读取工具（完整实现）
+│   └── socket_server.hpp  # Socket 服务端/客户端
 ├── src/                   # 源文件目录
-│   └── main.cpp           # 主程序
+│   ├── main.cpp           # 主程序
+│   └── socket_client_test.cpp  # Socket 客户端测试
 ├── mnist-fc/              # 模型参数文件夹
 │   ├── meta.json
 │   ├── fc1.weight

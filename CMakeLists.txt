@@ -54,8 +54,19 @@ set(HEADERS
 # 创建可执行文件
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
-# 链接 OpenCV 和 nlohmann_json
+# 链接 OpenCV、nlohmann_json，Windows 需 ws2_32
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} nlohmann_json::nlohmann_json)
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} ws2_32)
+endif()
+
+# Socket 客户端测试程序
+add_executable(socket_client_test src/socket_client_test.cpp)
+target_include_directories(socket_client_test PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(socket_client_test PRIVATE nlohmann_json::nlohmann_json)
+if(WIN32)
+    target_link_libraries(socket_client_test PRIVATE ws2_32)
+endif()
 
 # ⚠️ 重要提示：由于 Windows 上 mingw32-make 工具存在问题
 # 请使用 build.ps1 脚本编译，而不是使用 CMake 的构建命令

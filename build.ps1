@@ -43,11 +43,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Linking executable..." -ForegroundColor Yellow
 g++ "$buildDir\main.o" `
     -L"$opencvDir\build\lib" `
-    -lopencv_highgui4120 `
-    -lopencv_videoio4120 `
-    -lopencv_imgcodecs4120 `
-    -lopencv_imgproc4120 `
-    -lopencv_core4120 `
+    -lopencv_highgui4120 -lopencv_videoio4120 -lopencv_imgcodecs4120 -lopencv_imgproc4120 -lopencv_core4120 `
+    -lws2_32 `
     -o "$buildDir\HandwritingNumberRecognition.exe"
 
 if ($LASTEXITCODE -ne 0) {
