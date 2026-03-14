@@ -1,4 +1,4 @@
-﻿# Build script - Compile project using g++
+# Build script - Compile project using g++
 # Usage: .\build.ps1
 
 $projDir = $PSScriptRoot
@@ -10,12 +10,20 @@ if (-not (Test-Path $buildDir)) {
     New-Item -ItemType Directory -Path $buildDir | Out-Null
 }
 
+# 确保 nlohmann/json 已拉取（通过 CMake FetchContent）
+$jsonInclude = Join-Path $buildDir "_deps\json-src\single_include"
+if (-not (Test-Path (Join-Path $jsonInclude "nlohmann\json.hpp"))) {
+    Write-Host "Running CMake to fetch nlohmann/json..." -ForegroundColor Yellow
+    cmake -B build 2>$null
+}
+
 Write-Host "Compiling..." -ForegroundColor Green
 
 # Compile source file
 Write-Host "Compiling main.cpp..." -ForegroundColor Yellow
 g++ -std=c++17 `
     -I"$projDir\include" `
+    -I"$jsonInclude" `
     -I"$opencvDir\build" `
     -I"$opencvDir\include" `
     -I"$opencvDir\modules\core\include" `

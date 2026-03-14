@@ -8,6 +8,7 @@
    - Linux: GCC 7 或更高版本
    - macOS: Clang (Xcode Command Line Tools)
 3. **OpenCV** (需要安装并配置)
+4. **nlohmann/json** (通过 CMake FetchContent 自动下载，或 vcpkg 安装)
 
 ## 安装 OpenCV
 

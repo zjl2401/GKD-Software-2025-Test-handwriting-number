@@ -3,6 +3,7 @@
 
 #include "matrix.h"
 #include "model.h"
+#include <nlohmann/json.hpp>
 #include <string>
 #include <fstream>
 
@@ -31,33 +32,48 @@ inline Matrix readMatrixFromBinary(const std::string& filename, int rows, int co
     return matrix;
 }
 
-// 从二进制文件读取模型参数（不使用JSON）
+// 从 meta.json 解析模型维度并加载模型参数
 class ModelLoader {
 public:
     static Model loadModel(const std::string& folderPath) {
-        // 模型维度（从meta.json中已知）
-        // fc1.weight 文件大小：1568000 bytes = 500*784*4 bytes
-        //  所以维度是 [500, 784] 或者存储时是行优先
-        // fc1.bias: [1, 500]
-        // fc2.weight: [10, 500]
-        // fc2.bias: [1, 10]
-        
         std::string basePath = folderPath;
         if (basePath.back() != '/' && basePath.back() != '\\') {
             basePath += "/";
         }
         
-        // 读取fc1层的参数 - 不转置，直接读取
-        // PyTorch的Linear层权重存储为 [out_features, in_features]
-        // 文件中应该是 [500, 784]，行优先存储
-        Matrix weight1 = readMatrixFromBinary(basePath + "fc1.weight", 500, 784);
-        Matrix bias1 = readMatrixFromBinary(basePath + "fc1.bias", 1, 500);
+        std::string metaPath = basePath + "meta.json";
+        std::ifstream metaFile(metaPath);
+        if (!metaFile.is_open()) {
+            throw std::runtime_error("Cannot open meta.json: " + metaPath);
+        }
         
-        // 读取fc2层的参数
-        Matrix weight2 = readMatrixFromBinary(basePath + "fc2.weight", 10, 500);
-        Matrix bias2 = readMatrixFromBinary(basePath + "fc2.bias", 1, 10);
+        nlohmann::json meta;
+        metaFile >> meta;
+        metaFile.close();
         
-        // 创建并返回Model
+        // 从 meta.json 读取各矩阵维度
+        // meta 中格式为 [dim0, dim1]，权重为 [in_features, out_features]
+        // PyTorch Linear 存储为 [out_features, in_features]，故读取时 rows=dim1, cols=dim0
+        auto fc1w = meta["fc1.weight"];
+        auto fc1b = meta["fc1.bias"];
+        auto fc2w = meta["fc2.weight"];
+        auto fc2b = meta["fc2.bias"];
+        
+        int w1_rows = fc1w[1].get<int>();
+        int w1_cols = fc1w[0].get<int>();
+        int b1_rows = fc1b[0].get<int>();
+        int b1_cols = fc1b[1].get<int>();
+        int w2_rows = fc2w[1].get<int>();
+        int w2_cols = fc2w[0].get<int>();
+        int b2_rows = fc2b[0].get<int>();
+        int b2_cols = fc2b[1].get<int>();
+        
+        // 读取四个矩阵
+        Matrix weight1 = readMatrixFromBinary(basePath + "fc1.weight", w1_rows, w1_cols);
+        Matrix bias1 = readMatrixFromBinary(basePath + "fc1.bias", b1_rows, b1_cols);
+        Matrix weight2 = readMatrixFromBinary(basePath + "fc2.weight", w2_rows, w2_cols);
+        Matrix bias2 = readMatrixFromBinary(basePath + "fc2.bias", b2_rows, b2_cols);
+        
         return Model(weight1, bias1, weight2, bias2);
     }
 };

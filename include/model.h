@@ -3,6 +3,7 @@
 
 #include "matrix.h"
 #include <vector>
+#include <string>
 #include <cmath>
 #include <algorithm>
 
@@ -47,45 +48,39 @@ public:
         : weight1_(weight1), bias1_(bias1), weight2_(weight2), bias2_(bias2) {
     }
     
-    // forward方法：输入1*784矩阵，返回长为10的向量
+    // forward方法：输入 1×in_features 矩阵，返回长为 10 的向量
     std::vector<float> forward(const Matrix& input) {
-        // 输入应该是1 * 784
-        if (input.getRows() != 1 || input.getCols() != 784) {
-            throw std::runtime_error("Input matrix must be 1 * 784");
+        int in_features = weight1_.getCols();  // 784 或由 meta.json 决定
+        int hidden = weight1_.getRows();
+        int out_features = weight2_.getRows();  // 10
+        
+        if (input.getRows() != 1 || input.getCols() != in_features) {
+            throw std::runtime_error("Input matrix must be 1 * " + std::to_string(in_features));
         }
         
-        // 正确的矩阵乘法过程：
-        // input (1×784) @ weight1_.T (784×500) = temp1 (1×500)
-        // 但weight1_已经是 [500, 784]，所以需要转置为 [784, 500]
-        // 创建转置矩阵
-        Matrix weight1_T(784, 500);
-        for (int i = 0; i < 784; i++) {
-            for (int j = 0; j < 500; j++) {
+        // input (1×in) @ weight1_.T (in×hidden) = temp1 (1×hidden)
+        Matrix weight1_T(in_features, hidden);
+        for (int i = 0; i < in_features; i++) {
+            for (int j = 0; j < hidden; j++) {
                 weight1_T(i, j) = weight1_(j, i);
             }
         }
         Matrix temp1 = input * weight1_T;
         
-        // + b1 -> 1 * 500
         Matrix temp2 = temp1 + bias1_;
-        
-        // relu -> 1 * 500
         Matrix temp3 = relu(temp2);
         
-        // temp3 (1×500) @ weight2_.T (500×10) = temp4 (1×10)
-        // weight2_是 [10, 500]，需要转置为 [500, 10]
-        Matrix weight2_T(500, 10);
-        for (int i = 0; i < 500; i++) {
-            for (int j = 0; j < 10; j++) {
+        // temp3 (1×hidden) @ weight2_.T (hidden×out) = temp4 (1×out)
+        Matrix weight2_T(hidden, out_features);
+        for (int i = 0; i < hidden; i++) {
+            for (int j = 0; j < out_features; j++) {
                 weight2_T(i, j) = weight2_(j, i);
             }
         }
         Matrix temp4 = temp3 * weight2_T;
         
-        // + b2 -> 1 * 10
         Matrix temp5 = temp4 + bias2_;
         
-        // softmax -> 10维向量
         std::vector<float> output = temp5.toVector();
         return softmax(output);
     }

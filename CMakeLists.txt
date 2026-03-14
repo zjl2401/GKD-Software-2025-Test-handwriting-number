@@ -7,6 +7,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 包含项目自身的头文件目录
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+# nlohmann/json: 优先 find_package (vcpkg)，否则 FetchContent
+find_package(nlohmann_json QUIET)
+if(NOT nlohmann_json_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.11.2
+    )
+    FetchContent_MakeAvailable(json)
+endif()
+
 # 设置OpenCV路径（如果未设置）
 if(NOT OpenCV_DIR)
     # 尝试常见的OpenCV安装路径
@@ -43,8 +54,8 @@ set(HEADERS
 # 创建可执行文件
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
-# 链接OpenCV库
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
+# 链接 OpenCV 和 nlohmann_json
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} nlohmann_json::nlohmann_json)
 
 # ⚠️ 重要提示：由于 Windows 上 mingw32-make 工具存在问题
 # 请使用 build.ps1 脚本编译，而不是使用 CMake 的构建命令
