@@ -1,0 +1,42 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "default",
+            "displayName": "Default Config",
+            "description": "使用 MinGW Makefiles 生成器",
+            "generator": "MinGW Makefiles",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "C:/TDM-GCC-64/bin/gcc.exe",
+                "CMAKE_CXX_COMPILER": "C:/TDM-GCC-64/bin/g++.exe"
+            }
+        },
+        {
+            "name": "release",
+            "displayName": "Release Config",
+            "description": "Release 配置",
+            "generator": "MinGW Makefiles",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_C_COMPILER": "C:/TDM-GCC-64/bin/gcc.exe",
+                "CMAKE_CXX_COMPILER": "C:/TDM-GCC-64/bin/g++.exe"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "default",
+            "configurePreset": "default"
+        },
+        {
+            "name": "release",
+            "configurePreset": "release"
+        }
+    ]
+}
+
