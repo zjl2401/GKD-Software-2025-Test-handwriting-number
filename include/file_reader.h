@@ -56,7 +56,6 @@ inline std::unique_ptr<ModelBase> createModel(const std::string& folderPath) {
     auto fc2w = meta["fc2.weight"];
     auto fc2b = meta["fc2.bias"];
     
-    // meta [dim0,dim1] = 二进制行优先 dim0 行 dim1 列
     int w1_rows = fc1w[0].get<int>();
     int w1_cols = fc1w[1].get<int>();
     int b1_rows = fc1b[0].get<int>();
@@ -73,7 +72,6 @@ inline std::unique_ptr<ModelBase> createModel(const std::string& folderPath) {
         Matrix<double> bias2 = readMatrixFromBinary<double>(basePath + "fc2.bias", b2_rows, b2_cols);
         return std::make_unique<Model<double>>(weight1, bias1, weight2, bias2);
     } else {
-        // fp32 或默认
         Matrix<float> weight1 = readMatrixFromBinary<float>(basePath + "fc1.weight", w1_rows, w1_cols);
         Matrix<float> bias1 = readMatrixFromBinary<float>(basePath + "fc1.bias", b1_rows, b1_cols);
         Matrix<float> weight2 = readMatrixFromBinary<float>(basePath + "fc2.weight", w2_rows, w2_cols);

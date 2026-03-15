@@ -1,4 +1,3 @@
-// 用 nums/0.png~9.png 验证模型与预处理是否一致（part6：28x28，/255，不取反）
 #ifdef _WIN32
 #define NOMINMAX
 #endif

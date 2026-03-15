@@ -53,7 +53,6 @@ public:
         : weight1_(weight1), bias1_(bias1), weight2_(weight2), bias2_(bias2) {}
 
     std::vector<float> forward(const std::vector<float>& input) override {
-        // weight1 (784,500) weight2 (500,10)，直接乘
         int in_features = weight1_.getRows();
         int hidden = weight1_.getCols();
         int out_features = weight2_.getCols();
@@ -75,8 +74,6 @@ public:
         
         std::vector<T> outVec = temp5.toVector();
         std::vector<T> probs = softmax(outVec);
-        
-        // 转回 float 返回
         std::vector<float> result(probs.size());
         for (size_t i = 0; i < probs.size(); i++) {
             result[i] = static_cast<float>(probs[i]);

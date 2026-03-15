@@ -1,7 +1,3 @@
-// 简单 Socket 客户端，用于验证收发是否正确
-// 用法：先启动 HandwritingNumberRecognition --server，再运行本程序
-// 发送全黑(0)、全白(1)和随机向量，打印收到的 10 维概率
-
 #include "../include/socket_server.hpp"
 #include <iostream>
 #include <iomanip>

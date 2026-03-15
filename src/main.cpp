@@ -91,7 +91,6 @@ private:
         needUpdate_ = true;
     }
     
-    // part6：28x28 行优先，/255 归一化，白底=1 黑字=0
     std::vector<float> preprocessImage(const cv::Mat& img) {
         cv::Mat work = img.clone();
         int x1 = work.cols, y1 = work.rows, x2 = 0, y2 = 0;
@@ -120,7 +119,6 @@ private:
         int rw = roi.cols, rh = roi.rows;
         if (rw <= 0) rw = 1;
         if (rh <= 0) rh = 1;
-        // 20：数字略大，保留 8 的双圈、9 的闭合环等细节，减少误判为 3/7
         const double targetSize = 20.0;
         double scale = std::min(targetSize / rw, targetSize / rh);
         int sw = static_cast<int>(rw * scale), sh = static_cast<int>(rh * scale);
@@ -134,7 +132,6 @@ private:
         ox = std::max(0, std::min(ox, 28 - resized.cols));
         oy = std::max(0, std::min(oy, 28 - resized.rows));
         resized.copyTo(out28(cv::Rect(ox, oy, resized.cols, resized.rows)));
-        // 不做模糊，保持边缘清晰，利于区分 8/3、9/7
         out28.convertTo(out28, CV_32F, 1.0 / 255.0);
         std::vector<float> vec(784);
         for (int i = 0; i < 28; i++)
