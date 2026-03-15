@@ -56,12 +56,13 @@ inline std::unique_ptr<ModelBase> createModel(const std::string& folderPath) {
     auto fc2w = meta["fc2.weight"];
     auto fc2b = meta["fc2.bias"];
     
-    int w1_rows = fc1w[1].get<int>();
-    int w1_cols = fc1w[0].get<int>();
+    // meta [dim0,dim1] = 二进制行优先 dim0 行 dim1 列
+    int w1_rows = fc1w[0].get<int>();
+    int w1_cols = fc1w[1].get<int>();
     int b1_rows = fc1b[0].get<int>();
     int b1_cols = fc1b[1].get<int>();
-    int w2_rows = fc2w[1].get<int>();
-    int w2_cols = fc2w[0].get<int>();
+    int w2_rows = fc2w[0].get<int>();
+    int w2_cols = fc2w[1].get<int>();
     int b2_rows = fc2b[0].get<int>();
     int b2_cols = fc2b[1].get<int>();
     

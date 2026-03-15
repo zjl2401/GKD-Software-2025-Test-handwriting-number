@@ -1,3 +1,6 @@
+#ifdef _WIN32
+#define NOMINMAX
+#endif
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -13,23 +16,13 @@
 #include <vector>
 #include <chrono>
 #include <fstream>
-#include <iomanip>
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <unistd.h>
-#include <limits.h>
-#endif
-
 class DrawingWindow {
 public:
-    // 本地模型模式：model 非空，socketHost 为空
-    // Socket 模式：model 可为空，socketHost 非空
     DrawingWindow(ModelBase* model, const std::string& socketHost, int socketPort)
         : model_(model), socketHost_(socketHost), socketPort_(socketPort),
           isDrawing_(false), needUpdate_(false) {
         canvas_ = cv::Mat(400, 400, CV_8UC1, cv::Scalar(255));
-        display_ = cv::Mat(400, 800, CV_8UC1, cv::Scalar(255));
+        display_ = cv::Mat(400, 800, CV_8UC3, cv::Scalar(255, 255, 255));
         inferenceThread_ = std::thread(&DrawingWindow::inferenceLoop, this);
     }
     
@@ -41,15 +34,12 @@ public:
     }
     
     void run() {
-        std::cout << "Creating OpenCV window..." << std::endl;
-        cv::namedWindow("Handwriting Number Recognition", cv::WINDOW_AUTOSIZE);
-        cv::setMouseCallback("Handwriting Number Recognition", mouseCallback, this);
-        std::cout << "Window created successfully!" << std::endl;
-        std::cout << "Window should be visible now. If not, check your taskbar or press Alt+Tab." << std::endl;
-        
+        std::string winTitle = "Draw a digit";
+        cv::namedWindow(winTitle, cv::WINDOW_AUTOSIZE);
+        cv::setMouseCallback(winTitle, mouseCallback, this);
         while (true) {
             updateDisplay();
-            cv::imshow("Handwriting Number Recognition", display_);
+            cv::imshow(winTitle, display_);
             
             int key = cv::waitKey(30) & 0xFF;
             if (key == 'q' || key == 27) break;
@@ -58,8 +48,8 @@ public:
     }
 
 private:
-    ModelBase* model_;           // 本地模型，Socket 模式下为 nullptr
-    std::string socketHost_;     // Socket 模式下的服务端地址
+    ModelBase* model_;
+    std::string socketHost_;
     int socketPort_;
     cv::Mat canvas_;
     cv::Mat display_;
@@ -71,6 +61,7 @@ private:
     
     std::vector<float> lastProbabilities_;
     int lastPrediction_;
+    std::mutex resultMutex_;
     
     static void mouseCallback(int event, int x, int y, int flags, void* userdata) {
         DrawingWindow* window = static_cast<DrawingWindow*>(userdata);
@@ -83,11 +74,11 @@ private:
         if (event == cv::EVENT_LBUTTONDOWN) {
             isDrawing_ = true;
             std::lock_guard<std::mutex> lock(canvasMutex_);
-            cv::circle(canvas_, cv::Point(x, y), 8, cv::Scalar(0), -1);
+            cv::circle(canvas_, cv::Point(x, y), 10, cv::Scalar(0), -1);
             needUpdate_ = true;
         } else if (event == cv::EVENT_MOUSEMOVE && isDrawing_) {
             std::lock_guard<std::mutex> lock(canvasMutex_);
-            cv::circle(canvas_, cv::Point(x, y), 8, cv::Scalar(0), -1);
+            cv::circle(canvas_, cv::Point(x, y), 10, cv::Scalar(0), -1);
             needUpdate_ = true;
         } else if (event == cv::EVENT_LBUTTONUP) {
             isDrawing_ = false;
@@ -100,19 +91,55 @@ private:
         needUpdate_ = true;
     }
     
-    // 预处理：返回 784 维 float 向量（0~1 归一化，白底黑字）
+    // part6：28x28 行优先，/255 归一化，白底=1 黑字=0
     std::vector<float> preprocessImage(const cv::Mat& img) {
-        cv::Mat resized;
-        cv::resize(img, resized, cv::Size(28, 28));
-        resized.convertTo(resized, CV_32F, 1.0 / 255.0);
-        cv::Mat inverted = 1.0f - resized;
-        
-        std::vector<float> vec(784);
-        for (int i = 0; i < 28; i++) {
-            for (int j = 0; j < 28; j++) {
-                vec[i * 28 + j] = inverted.at<float>(i, j);
+        cv::Mat work = img.clone();
+        int x1 = work.cols, y1 = work.rows, x2 = 0, y2 = 0;
+        for (int i = 0; i < work.rows; i++) {
+            const uchar* row = work.ptr<uchar>(i);
+            for (int j = 0; j < work.cols; j++) {
+                if (row[j] < 250) {
+                    if (j < x1) x1 = j;
+                    if (j > x2) x2 = j;
+                    if (i < y1) y1 = i;
+                    if (i > y2) y2 = i;
+                }
             }
         }
+        cv::Mat roi;
+        if (x2 >= x1 && y2 >= y1) {
+            int pad = 10;
+            x1 = std::max(0, x1 - pad);
+            y1 = std::max(0, y1 - pad);
+            x2 = std::min(work.cols - 1, x2 + pad);
+            y2 = std::min(work.rows - 1, y2 + pad);
+            roi = work(cv::Rect(x1, y1, x2 - x1 + 1, y2 - y1 + 1)).clone();
+        } else {
+            roi = work;
+        }
+        int rw = roi.cols, rh = roi.rows;
+        if (rw <= 0) rw = 1;
+        if (rh <= 0) rh = 1;
+        // 20：数字略大，保留 8 的双圈、9 的闭合环等细节，减少误判为 3/7
+        const double targetSize = 20.0;
+        double scale = std::min(targetSize / rw, targetSize / rh);
+        int sw = static_cast<int>(rw * scale), sh = static_cast<int>(rh * scale);
+        if (sw <= 0) sw = 1;
+        if (sh <= 0) sh = 1;
+        cv::Mat resized;
+        cv::resize(roi, resized, cv::Size(sw, sh), 0, 0,
+                  (sw < roi.cols || sh < roi.rows) ? cv::INTER_AREA : cv::INTER_LINEAR);
+        cv::Mat out28(28, 28, CV_8UC1, cv::Scalar(255));
+        int ox = (28 - resized.cols) / 2, oy = (28 - resized.rows) / 2;
+        ox = std::max(0, std::min(ox, 28 - resized.cols));
+        oy = std::max(0, std::min(oy, 28 - resized.rows));
+        resized.copyTo(out28(cv::Rect(ox, oy, resized.cols, resized.rows)));
+        // 不做模糊，保持边缘清晰，利于区分 8/3、9/7
+        out28.convertTo(out28, CV_32F, 1.0 / 255.0);
+        std::vector<float> vec(784);
+        for (int i = 0; i < 28; i++)
+            for (int j = 0; j < 28; j++)
+                vec[i * 28 + j] = out28.at<float>(i, j);
         return vec;
     }
     
@@ -128,6 +155,7 @@ private:
                 
                 cv::Scalar meanVal = cv::mean(canvasCopy);
                 if (meanVal[0] > 250.0) {
+                    std::lock_guard<std::mutex> lock(resultMutex_);
                     lastProbabilities_.clear();
                     continue;
                 }
@@ -150,20 +178,11 @@ private:
                     auto maxIt = std::max_element(probabilities.begin(), probabilities.end());
                     int prediction = static_cast<int>(std::distance(probabilities.begin(), maxIt));
                     
-                    static int inferenceCount = 0;
-                    inferenceCount++;
-                    if (inferenceCount <= 5 || prediction == 1) {
-                        std::cout << "Inference #" << inferenceCount << " - forward: " << std::fixed
-                                  << std::setprecision(2) << ms << " ms - Probabilities: ";
-                        for (size_t i = 0; i < probabilities.size(); i++) {
-                            std::cout << i << ":" << std::fixed << std::setprecision(3)
-                                     << probabilities[i] << " ";
-                        }
-                        std::cout << "-> Prediction: " << prediction << std::endl;
+                    {
+                        std::lock_guard<std::mutex> lock(resultMutex_);
+                        lastProbabilities_ = probabilities;
+                        lastPrediction_ = prediction;
                     }
-                    
-                    lastProbabilities_ = probabilities;
-                    lastPrediction_ = prediction;
                 } catch (const std::exception& e) {
                     std::cerr << "Inference error: " << e.what() << std::endl;
                 }
@@ -174,55 +193,61 @@ private:
     }
     
     void updateDisplay() {
+        cv::Mat leftRoi = display_(cv::Rect(0, 0, 400, 400));
         {
             std::lock_guard<std::mutex> lock(canvasMutex_);
-            canvas_.copyTo(display_(cv::Rect(0, 0, 400, 400)));
+            cv::cvtColor(canvas_, leftRoi, cv::COLOR_GRAY2BGR);
         }
-        
+
         cv::Mat rightPanel = display_(cv::Rect(400, 0, 400, 400));
-        rightPanel = cv::Scalar(255);
-        
-        if (!lastProbabilities_.empty()) {
-            std::string predText = "Prediction: " + std::to_string(lastPrediction_);
-            cv::putText(rightPanel, predText, cv::Point(50, 50),
-                       cv::FONT_HERSHEY_SIMPLEX, 1.5, cv::Scalar(0), 3);
-            
-            int barWidth = 30;
-            int barSpacing = 10;
-            int startX = 50;
-            int startY = 350;
-            int maxHeight = 250;
-            
-            for (int i = 0; i < 10; i++) {
-                int x = startX + i * (barWidth + barSpacing);
-                int height = static_cast<int>(lastProbabilities_[i] * maxHeight);
-                int y = startY - height;
-                
-                cv::rectangle(rightPanel,
-                            cv::Point(x, y),
-                            cv::Point(x + barWidth, startY),
-                            cv::Scalar(0), -1);
-                cv::putText(rightPanel, std::to_string(i),
-                          cv::Point(x + 8, startY + 20),
-                          cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0), 2);
-                std::string probText = std::to_string(static_cast<int>(lastProbabilities_[i] * 100)) + "%";
-                cv::putText(rightPanel, probText,
-                          cv::Point(x, y - 5),
-                          cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0), 1);
+        rightPanel.setTo(cv::Scalar(0, 0, 0));
+
+        std::vector<float> probs;
+        int pred = 0;
+        {
+            std::lock_guard<std::mutex> lock(resultMutex_);
+            probs = lastProbabilities_;
+            pred = lastPrediction_;
+        }
+        if (!probs.empty() && probs.size() >= 10) {
+            cv::Mat leftPanel = display_(cv::Rect(0, 0, 400, 400));
+            std::string predStr = "Prediction: " + std::to_string(pred);
+            cv::putText(leftPanel, predStr, cv::Point(10, 32),
+                        cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
+
+            const int nRows = 10;
+            const int lineH = 36;
+            const int textX = 15;
+            const int barX = 95;
+            const int barMaxW = 260;
+            const int barH = 22;
+
+            for (int i = 0; i < nRows; i++) {
+                int y = 24 + i * lineH;
+                int pct = static_cast<int>(probs[i] * 100);
+                std::string rowText = std::to_string(i) + ": " + std::to_string(pct) + "%";
+                cv::putText(rightPanel, rowText, cv::Point(textX, y),
+                            cv::FONT_HERSHEY_SIMPLEX, 0.65, cv::Scalar(0, 0, 255), 1);
+                int w = static_cast<int>(probs[i] * barMaxW);
+                if (w > 0) {
+                    if (w < 2) w = 2;
+                    cv::rectangle(rightPanel,
+                                 cv::Point(barX, y - barH + 4),
+                                 cv::Point(barX + w, y + 4),
+                                 cv::Scalar(0, 255, 0), -1);
+                }
             }
         } else {
-            cv::putText(rightPanel, "Draw a number", cv::Point(50, 200),
-                       cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0), 2);
+            cv::putText(rightPanel, "Draw a digit on the left", cv::Point(30, 200),
+                        cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(255, 255, 255), 1);
         }
-        
-        cv::putText(rightPanel, "Press 'c' to clear", cv::Point(50, 380),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0), 1);
+        cv::putText(rightPanel, "c: clear  q/ESC: quit", cv::Point(30, 378),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(180, 180, 180), 1);
     }
 };
 
 int main(int argc, char** argv) {
     try {
-        // 解析参数：plus, --server, --socket <host>
         bool usePlus = false;
         bool serverMode = false;
         std::string socketHost;
@@ -235,51 +260,27 @@ int main(int argc, char** argv) {
         }
         
         std::string modelFolder = usePlus ? "mnist-fc-plus" : "mnist-fc";
-        std::cout << "Using model: " << modelFolder << std::endl;
-        
-        // 确定模型路径
-        std::vector<std::string> possiblePaths = {
-            "../" + modelFolder,
-            modelFolder,
-            "../../" + modelFolder
-        };
-        
+        std::vector<std::string> possiblePaths = { "../" + modelFolder, modelFolder, "../../" + modelFolder };
         std::string modelPath;
         bool found = false;
-        std::cout << "Searching for model files..." << std::endl;
         for (const auto& path : possiblePaths) {
-            std::string testPath = path + "/fc1.weight";
-            std::ifstream testFile(testPath, std::ios::binary);
-            if (testFile.good()) {
-                modelPath = path;
-                found = true;
-                testFile.close();
-                std::cout << "Found model at: " << modelPath << std::endl;
-                break;
-            } else {
-                std::cout << "  Not found: " << testPath << std::endl;
-            }
+            std::ifstream f(path + "/fc1.weight", std::ios::binary);
+            if (f.good()) { modelPath = path; found = true; break; }
         }
-        
         std::unique_ptr<ModelBase> model;
         if (serverMode || socketHost.empty()) {
             if (!found) {
-                std::cerr << "Error: Cannot find " << modelFolder << " directory." << std::endl;
-                throw std::runtime_error("Cannot find model directory. Run with 'plus' for mnist-fc-plus.");
+                std::cerr << "Cannot find model folder: " << modelFolder << std::endl;
+                std::cerr << "Searched: " << possiblePaths[0] << ", " << possiblePaths[1] << ", " << possiblePaths[2] << std::endl;
+                std::cerr << "Tip: Copy " << modelFolder << " to the same directory as the .exe (e.g. build/ or build/Release)" << std::endl;
+                throw std::runtime_error("Cannot find " + modelFolder + " directory.");
             }
-            std::cout << "Loading model from: " << modelPath << std::endl;
             model = createModel(modelPath);
-            std::cout << "Model loaded successfully!" << std::endl;
         }
-        
         if (serverMode) {
             SocketServer server(model.get(), socketPort);
             server.run();
             return 0;
-        }
-        
-        if (!socketHost.empty()) {
-            std::cout << "Using socket backend: " << socketHost << ":" << socketPort << std::endl;
         }
         
         DrawingWindow window(model.get(), socketHost, socketPort);

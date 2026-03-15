@@ -53,38 +53,24 @@ public:
         : weight1_(weight1), bias1_(bias1), weight2_(weight2), bias2_(bias2) {}
 
     std::vector<float> forward(const std::vector<float>& input) override {
-        int in_features = weight1_.getCols();
-        int hidden = weight1_.getRows();
-        int out_features = weight2_.getRows();
+        // weight1 (784,500) weight2 (500,10)，直接乘
+        int in_features = weight1_.getRows();
+        int hidden = weight1_.getCols();
+        int out_features = weight2_.getCols();
         
         if (input.size() != static_cast<size_t>(in_features)) {
             throw std::runtime_error("Input size must be " + std::to_string(in_features));
         }
         
-        // 将 float 输入转为 Matrix<T>
         Matrix<T> inputMat(1, in_features);
         for (int j = 0; j < in_features; j++) {
             inputMat(0, j) = static_cast<T>(input[j]);
         }
         
-        // input (1×in) @ weight1_.T
-        Matrix<T> weight1_T(in_features, hidden);
-        for (int i = 0; i < in_features; i++) {
-            for (int j = 0; j < hidden; j++) {
-                weight1_T(i, j) = weight1_(j, i);
-            }
-        }
-        Matrix<T> temp1 = inputMat * weight1_T;
+        Matrix<T> temp1 = inputMat * weight1_;
         Matrix<T> temp2 = temp1 + bias1_;
         Matrix<T> temp3 = relu(temp2);
-        
-        Matrix<T> weight2_T(hidden, out_features);
-        for (int i = 0; i < hidden; i++) {
-            for (int j = 0; j < out_features; j++) {
-                weight2_T(i, j) = weight2_(j, i);
-            }
-        }
-        Matrix<T> temp4 = temp3 * weight2_T;
+        Matrix<T> temp4 = temp3 * weight2_;
         Matrix<T> temp5 = temp4 + bias2_;
         
         std::vector<T> outVec = temp5.toVector();
