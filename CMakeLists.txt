@@ -83,6 +83,7 @@ set(HEADERS
     include/matrix.h
     include/model.h
     include/file_reader.h
+    include/preprocess.h
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})

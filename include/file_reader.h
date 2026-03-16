@@ -7,6 +7,7 @@
 #include <string>
 #include <fstream>
 #include <memory>
+#include <vector>
 
 template<typename T>
 inline Matrix<T> readMatrixFromBinary(const std::string& filename, int rows, int cols) {
@@ -30,6 +31,16 @@ inline Matrix<T> readMatrixFromBinary(const std::string& filename, int rows, int
     
     file.close();
     return matrix;
+}
+
+// 在常见相对路径下查找模型目录（存在 fc1.weight 的目录），找不到返回空字符串
+inline std::string findModelPath(const std::string& modelFolder) {
+    std::vector<std::string> possiblePaths = { "../" + modelFolder, modelFolder, "../../" + modelFolder };
+    for (const auto& path : possiblePaths) {
+        std::ifstream f(path + "/fc1.weight", std::ios::binary);
+        if (f.good()) return path;
+    }
+    return "";
 }
 
 // 根据 meta.json 的 type 加载 Model<float> 或 Model<double>，返回 ModelBase 指针
